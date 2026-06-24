@@ -1,55 +1,139 @@
-const mongoose = require("mongoose");
+const Item = require("../models/Item");
+const StockTransaction = require("../models/StockTransaction");
 
-const stockTransactionSchema =
-    new mongoose.Schema(
-        {
-            item: {
-                type:
-                    mongoose.Schema.Types
-                        .ObjectId,
-                ref: "Item",
-                required: true,
-            },
+// GET ALL STOCK
+const getStock = async (req, res) => {
+    try {
+        const stock = await Item.find();
 
-            type: {
-                type: String,
-                enum: [
-                    "IN",
-                    "OUT",
-                ],
-                required: true,
-            },
+        res.status(200).json({
+            success: true,
+            stock,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
 
-            quantity: {
-                type: Number,
-                required: true,
-            },
+// STOCK IN
+const stockIn = async (req, res) => {
+    try {
+        const {
+            itemId,
+            quantity,
+            company,
+        } = req.body;
 
-            voucherNumber: {
-                type: String,
-                default: "",
-            },
+        const item = await Item.findById(itemId);
 
-            remarks: {
-                type: String,
-                default: "",
-            },
-
-            company: {
-                type:
-                    mongoose.Schema.Types
-                        .ObjectId,
-                ref: "Company",
-                required: true,
-            },
-        },
-        {
-            timestamps: true,
+        if (!item) {
+            return res.status(404).json({
+                success: false,
+                message: "Item not found",
+            });
         }
-    );
 
-module.exports =
-    mongoose.model(
-        "StockTransaction",
-        stockTransactionSchema
-    );
+        item.stock += Number(quantity);
+
+        await item.save();
+
+        await StockTransaction.create({
+            item: itemId,
+            company,
+            type: "IN",
+            quantity,
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "Stock added successfully",
+            item,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+// STOCK OUT
+const stockOut = async (req, res) => {
+    try {
+        const {
+            itemId,
+            quantity,
+            company,
+        } = req.body;
+
+        const item = await Item.findById(itemId);
+
+        if (!item) {
+            return res.status(404).json({
+                success: false,
+                message: "Item not found",
+            });
+        }
+
+        if (item.stock < quantity) {
+            return res.status(400).json({
+                success: false,
+                message: "Insufficient stock",
+            });
+        }
+
+        item.stock -= Number(quantity);
+
+        await item.save();
+
+        await StockTransaction.create({
+            item: itemId,
+            company,
+            type: "OUT",
+            quantity,
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "Stock removed successfully",
+            item,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+// STOCK HISTORY
+const getStockHistory = async (req, res) => {
+    try {
+        const history = await StockTransaction.find()
+            .populate("item")
+            .populate("company")
+            .sort({
+                createdAt: -1,
+            });
+
+        res.status(200).json({
+            success: true,
+            history,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+module.exports = {
+    getStock,
+    stockIn,
+    stockOut,
+    getStockHistory,
+};
