@@ -163,4 +163,4 @@ module.exports = {
     stockIn,
     stockOut,
     getStockHistory,
-};
+};  
